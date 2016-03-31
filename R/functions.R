@@ -350,6 +350,7 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
   mkts <- create_market_vectors(data, test_market, control_market)
   y <- mkts[[1]]
   ref <- mkts[[2]]
+  ref <- remove_na_columns(ref)
   date <- mkts[[3]]
   end_post_period <- max(date)
   post_period <- date[date > as.Date(mm[1, "MatchingEndDate"])]
@@ -513,3 +514,11 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
   class(object) <- "matched_market_inference"
   return (object)
 }
+
+remove_na_columns <- function(data=NULL){
+  # Drop columns with nulls
+  data <- data[ , colSums(is.na(data)) == 0]
+  names(data) <- paste0("x", seq(1:length(data)))
+  return(data)
+}
+

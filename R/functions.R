@@ -190,7 +190,7 @@ dw <- function(y, yhat){
 #' \item{\code{DateVariable}}{The name of the date variable}
 
 
-best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matching_variable=NULL, warping_limit=1, parallel=TRUE, start_match_period=NULL, end_match_period=NULL, matches=5, dtw_emphasis=1){
+best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matching_variable=NULL, test_market=NULL, warping_limit=1, parallel=TRUE, start_match_period=NULL, end_match_period=NULL, matches=5, dtw_emphasis=1){
 
   ## Check the start date and end dates
   stopif(is.null(start_match_period), TRUE, "No start date provided")
@@ -227,20 +227,29 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
   ## check if any data is left
   stopif(nrow(data)>0, FALSE, "ERROR: no data left after filter for dates")
 
-  ## loop through markets and compute distances
-  if (parallel==FALSE){
-    for (i in 1:length(all_markets)){
-      all_distances[[i]] <- calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis)
-    }
+  ## If treatment_id is known a priori, no need to match all markets with all others
+  if(!is.null(test_market)){
+    stopif(test_market %in% unique(all_markets), FALSE, paste0("test market ", test_market, " does not exist"))
+    
+    i <- which(all_markets == test_market)
+    all_distances[[1]] <- calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis)
     shortest_distances <- data.frame(rbindlist(all_distances))
-  } else{
-    ncore <- detectCores()-1
-    registerDoParallel(ncore)
-    loop_result <- foreach(i=1:length(all_markets)) %dopar% {
-      calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis)
+  }else{
+    ## loop through markets and compute distances
+    if (parallel==FALSE){
+      for (i in 1:length(all_markets)){
+        all_distances[[i]] <- calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis)
+      }
+      shortest_distances <- data.frame(rbindlist(all_distances))
+    } else{
+      ncore <- detectCores()-1
+      registerDoParallel(ncore)
+      loop_result <- foreach(i=1:length(all_markets)) %dopar% {
+        calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis)
+      }
+      shortest_distances <- data.frame(rbindlist(loop_result))
+      stopImplicitCluster()
     }
-    shortest_distances <- data.frame(rbindlist(loop_result))
-    stopImplicitCluster()
   }
 
   ### Return the results

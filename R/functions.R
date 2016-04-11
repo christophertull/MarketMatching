@@ -359,7 +359,8 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
   mkts <- create_market_vectors(data, test_market, control_market)
   y <- mkts[[1]]
   ref <- mkts[[2]]
-  ref <- remove_na_columns(ref)
+  #ref <- remove_na_columns(ref)
+  ref <- na.omit(ref)
   date <- mkts[[3]]
   end_post_period <- max(date)
   post_period <- date[date > as.Date(mm[1, "MatchingEndDate"])]

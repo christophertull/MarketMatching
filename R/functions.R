@@ -92,11 +92,13 @@ create_market_vectors <- function(data, test_market, ref_market){
     ref <- subset(d, id_var == ref_market[1])[,c("date_var", "match_var")]
     names(ref)[2] <- "x1"
     f <- dplyr::inner_join(test, ref, by="date_var")
+    f <- na.omit(f)
     return(list(as.numeric(f$y), as.numeric(f$x1), as.Date(f$date_var)))
   } else if (length(ref_market)>1){
     ref <- reshape2::dcast(subset(d, id_var %in% ref_market), date_var ~ id_var, value.var="match_var")
     names(ref) <- c("date_var", paste0("x", seq(1:length(ref_market))))
     f <- data.frame(dplyr::inner_join(test, ref, by="date_var"))
+    f <- na.omit(f)
     return(list(as.numeric(f$y), dplyr::select(f, num_range("x", 1:length(ref_market))), as.Date(f$date_var)))
   }
 }
@@ -359,8 +361,6 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
   mkts <- create_market_vectors(data, test_market, control_market)
   y <- mkts[[1]]
   ref <- mkts[[2]]
-  #ref <- remove_na_columns(ref)
-  ref <- na.omit(ref)
   date <- mkts[[3]]
   end_post_period <- max(date)
   post_period <- date[date > as.Date(mm[1, "MatchingEndDate"])]

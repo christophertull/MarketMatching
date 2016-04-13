@@ -102,6 +102,7 @@ create_market_vectors <- function(data, test_market, ref_market){
     f <- na.omit(f)
     return(list(as.numeric(f$y), as.numeric(f$x1), as.Date(f$date_var)))
   } else if (length(ref_market)>1){
+    d <- distinct(d, id_var, date_var)
     ref <- reshape2::dcast(subset(d, id_var %in% ref_market), date_var ~ id_var, value.var="match_var")
     names(ref) <- c("date_var", paste0("x", seq(1:length(ref_market))))
     f <- data.frame(dplyr::inner_join(test, ref, by="date_var"))

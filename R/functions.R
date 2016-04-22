@@ -120,14 +120,17 @@ dw <- function(y, yhat){
 #' For each market, find the best matching control market
 #'
 #' \code{best_matches} finds the best matching control markets for each market in the dataset
-#' using dynamic time warping (\code{dtw} package). The algorithm simply loops through all viable candidates for each
-#' market in a parallel fashion, and then ranks by distance and/or correlation.
+#' using dynamic time warping (\code{dtw} package). If test_market is specified then only the distance from the
+#' test market to every other market is calculated, thereby decreasing runtime from O(n^2) to O(n). Otherwise 
+#' the algorithm simply loops through all viable candidates for each market in a parallel fashion, 
+#' and then ranks by distance and/or correlation.
 #'
 #' @param data input data.frame for analysis. The dataset should be structured as "stacked" time series (i.e., a panel dataset).
 #' In other words, markets are rows and not columns -- we have a unique row for each area/time combination.
 #' @param id_variable the name of the variable that identifies the markets
 #' @param date_variable the time stamp variable
 #' @param matching_variable the variable (metric) used to match the markets. For example, this could be sales or new customers
+#' @param test_market The id of the test market to find the best matches for. If NULL then distances are calculated for every pair of markets. 
 #' @param parallel set to TRUE for parallel processing. Default is TRUE
 #' @param warping_limit the warping limit used for matching. Default is 1, 
 #' which means that a single query value can be mapped to at most 2 reference values.
@@ -266,6 +269,9 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
 #' @param prior_level_sd Prior SD for the local level term (Gaussian random walk). Default is 0.01. The bigger this number is, the more wiggliness is allowed for the local level term.
 #' Note that more wiggly local level terms also translate into larger posterior intervals.
 #' @param control_matches Number of matching control markets to use in the analysis
+#' @param analyze_betas Controls whether to test the model under a variety of different values for prior_level_sd.
+#' Setting this to FALSE will decrease the number of calls to CausalImpact, thus speeding execution but will also
+#' disable the PlotPriorLevelSdAnalysis chart.
 
 #' @importFrom scales comma
 #' @import ggplot2
@@ -300,7 +306,8 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
 #'           end_post_period=NULL,
 #'           alpha=0.05,
 #'           prior_level_sd=0.01,
-#'           control_matches=5)
+#'           control_matches=5,
+#'           analyze_betas=TRUE)
 #'
 #' @return Returns an object of type \code{inference}. The object has the
 #' following elements:
@@ -320,7 +327,7 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
 #' \item{\code{PlotCumulativeEffect}}{Plot of the cumulative effect using \code{ggplot2}}
 #' \item{\code{PlotPointEffect}}{Plot of the pointwise effect using \code{ggplot2}}
 #' \item{\code{PlotActuals}}{Plot of the actual values for the test and control markets using \code{ggplot2}}
-#' \item{\code{PlotPriorLevelSdAnalysis}}{Plot of DW and MAPE for different values of the local level SE using \code{ggplot2}}
+#' \item{\code{PlotPriorLevelSdAnalysis}}{Plot of DW and MAPE for different values of the local level SE using \code{ggplot2}. Disabled if analyze_betas=FALSE.}
 #' \item{\code{PlotLocalLevel}}{Plot of the local level term using \code{ggplot2}}
 #' \item{\code{TestData}}{A \code{data.frame} with the test market data}
 #' \item{\code{TestData}}{A \code{data.frame} with the data for the control markets}
@@ -332,7 +339,8 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
 #' \item{\code{CausalImpactObject}}{The CausalImpact object created}
 #' \item{\code{Coefficients}}{The average posterior coefficients}
 
-inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NULL, alpha=0.05, prior_level_sd=0.01, control_matches=5){
+inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NULL, alpha=0.05, 
+                      prior_level_sd=0.01, control_matches=5, analyze_betas=TRUE){
 
   ## copy the distances
   mm <- dplyr::filter(matched_markets$BestMatches, rank<=control_matches)
@@ -393,19 +401,21 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
   set.seed(2015)
   impact <- CausalImpact(ts, pre.period, post.period, alpha=alpha, model.args=list(prior.level.sd=prior_level_sd))
 
-  ## estimate betas for different values of prior sd
-  betas <- data.frame(matrix(nrow=11, ncol=4))
-  names(betas) <- c("SD", "SumBeta", "DW", "MAPE")
-  for (i in 0:20){
-    step <- (max(0.1, prior_level_sd) - min(0.001, prior_level_sd))/20
-    sd <- min(0.001, prior_level_sd) + step*i
-    m <- CausalImpact(ts, pre.period, post.period, alpha=alpha, model.args=list(prior.level.sd=sd))
-    b <- sum(colMeans(m$model$bsts.model$coefficients))
-    betas[i+1, "SD"] <- sd
-    betas[i+1, "SumBeta"] <- b
-    preperiod <- subset(m$series, cum.effect == 0)
-    betas[i+1, "DW"] <- dw(preperiod$response, preperiod$point.pred)
-    betas[i+1, "MAPE"] <- mape_no_zeros(preperiod$response, preperiod$point.pred)
+  if(analyze_betas==TRUE){
+    ## estimate betas for different values of prior sd
+    betas <- data.frame(matrix(nrow=11, ncol=4))
+    names(betas) <- c("SD", "SumBeta", "DW", "MAPE")
+    for (i in 0:20){
+      step <- (max(0.1, prior_level_sd) - min(0.001, prior_level_sd))/20
+      sd <- min(0.001, prior_level_sd) + step*i
+      m <- CausalImpact(ts, pre.period, post.period, alpha=alpha, model.args=list(prior.level.sd=sd))
+      b <- sum(colMeans(m$model$bsts.model$coefficients))
+      betas[i+1, "SD"] <- sd
+      betas[i+1, "SumBeta"] <- b
+      preperiod <- subset(m$series, cum.effect == 0)
+      betas[i+1, "DW"] <- dw(preperiod$response, preperiod$point.pred)
+      betas[i+1, "MAPE"] <- mape_no_zeros(preperiod$response, preperiod$point.pred)
+    }
   }
 
   ## create statistics
@@ -470,18 +480,20 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
     geom_vline(xintercept=as.numeric(MatchingEndDate), linetype=2) +
     scale_y_continuous(labels = comma, limits=c(ymin, ymax))
 
-  ## plot betas at various local level SDs
-  results[[13]] <- ggplot(data=betas, aes(x=SD, y=Beta)) +
-    geom_line() +
-    theme_bw() + theme(legend.title = element_blank()) +
-    geom_vline(xintercept=as.numeric(prior_level_sd), linetype=2) + xlab("Local Level Prior SD")
-
-  ## plot DWs and MAPEs at different SDs
-  plotdf <- melt(data=betas, id="SD")
-  results[[14]] <- ggplot(data=plotdf, aes(x=SD, y=value, colour=variable)) + geom_line() +
-    theme_bw() + theme(legend.title = element_blank()) +
-    geom_vline(xintercept=as.numeric(prior_level_sd), linetype=2) + xlab("Local Level Prior SD") +
-    facet_grid(variable ~ ., scales="free") + ylab("") + guides(colour=FALSE)
+  if(analyze_betas==TRUE){
+    ## plot betas at various local level SDs
+    results[[13]] <- ggplot(data=betas, aes(x=SD, y=Beta)) +
+      geom_line() +
+      theme_bw() + theme(legend.title = element_blank()) +
+      geom_vline(xintercept=as.numeric(prior_level_sd), linetype=2) + xlab("Local Level Prior SD")
+    
+    ## plot DWs and MAPEs at different SDs
+    plotdf <- melt(data=betas, id="SD")
+    results[[14]] <- ggplot(data=plotdf, aes(x=SD, y=value, colour=variable)) + geom_line() +
+      theme_bw() + theme(legend.title = element_blank()) +
+      geom_vline(xintercept=as.numeric(prior_level_sd), linetype=2) + xlab("Local Level Prior SD") +
+      facet_grid(variable ~ ., scales="free") + ylab("") + guides(colour=FALSE)
+  }
 
   plotdf <- cbind.data.frame(date, impact$model$bsts.model$state.contributions[1000, 1, ]) %>% filter(date<=as.Date(MatchingEndDate))
   names(plotdf) <- c("Date", "LocalLevel")

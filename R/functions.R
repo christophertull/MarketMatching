@@ -275,6 +275,7 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
 #' @param alpha Desired tail-area probability for posterior intervals. For example, 0.05 yields 0.95 intervals
 #' @param prior_level_sd Prior SD for the local level term (Gaussian random walk). Default is 0.01. The bigger this number is, the more wiggliness is allowed for the local level term.
 #' Note that more wiggly local level terms also translate into larger posterior intervals.
+#' @param n_seasons Period of the seasonal components. Defaults to 1, which means no seasonal component is used.
 #' @param control_matches Number of matching control markets to use in the analysis
 #' @param analyze_betas Controls whether to test the model under a variety of different values for prior_level_sd.
 #' Setting this to FALSE will decrease the number of calls to CausalImpact, thus speeding execution but will also
@@ -347,7 +348,7 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
 #' \item{\code{Coefficients}}{The average posterior coefficients}
 
 inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NULL, alpha=0.05, 
-                      prior_level_sd=0.01, control_matches=5, analyze_betas=TRUE){
+                      prior_level_sd=0.01, n_seasons=1, control_matches=5, analyze_betas=TRUE){
 
   ## copy the distances
   mm <- dplyr::filter(matched_markets$BestMatches, rank<=control_matches)
@@ -406,7 +407,8 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
   pre.period <- c(as.Date(MatchingStartDate), as.Date(MatchingEndDate))
   post.period <- c(as.Date(post_period_start_date), as.Date(post_period_end_date))
   set.seed(2015)
-  impact <- CausalImpact(ts, pre.period, post.period, alpha=alpha, model.args=list(prior.level.sd=prior_level_sd))
+  impact <- CausalImpact(ts, pre.period, post.period, alpha=alpha, 
+                         model.args=list(prior.level.sd=prior_level_sd, nseasons=n_seasons))
 
   if(analyze_betas==TRUE){
     ## estimate betas for different values of prior sd
@@ -415,7 +417,8 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
     for (i in 0:20){
       step <- (max(0.1, prior_level_sd) - min(0.001, prior_level_sd))/20
       sd <- min(0.001, prior_level_sd) + step*i
-      m <- CausalImpact(ts, pre.period, post.period, alpha=alpha, model.args=list(prior.level.sd=sd))
+      m <- CausalImpact(ts, pre.period, post.period, alpha=alpha, 
+                        model.args=list(prior.level.sd=sd, nseasons=n_seasons))
       burn <- SuggestBurn(0.1, m$model$bsts.model)
       b <- sum(apply(m$model$bsts.model$coefficients[-(1:burn),], 2, CMean))
       betas[i+1, "SD"] <- sd

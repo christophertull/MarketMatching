@@ -491,6 +491,7 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
     geom_vline(xintercept=as.numeric(MatchingEndDate), linetype=2) +
     scale_y_continuous(labels = scales::comma, limits=c(ymin, ymax))
 
+
   if(analyze_betas==TRUE){
     ## plot betas at various local level SDs
     results[[13]] <- ggplot(data=betas, aes(x=SD, y=Beta)) +

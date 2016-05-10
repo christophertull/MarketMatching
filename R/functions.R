@@ -428,6 +428,8 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
       betas[i+1, "MAPE"] <- mape_no_zeros(preperiod$response, preperiod$point.pred)
     }
   }
+  
+  burn <- SuggestBurn(0.1, impact$model$bsts.model)
 
   ## create statistics
   results <- list()

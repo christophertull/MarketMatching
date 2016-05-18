@@ -91,18 +91,25 @@ check_inputs <- function(data=NULL, id=NULL, matching_variable=NULL, date_variab
 }
 
 #' @importFrom reshape2 melt dcast
-create_market_vectors <- function(data, test_market, ref_market){
-  d <- subset(data, !is.na(match_var))
-  test <- subset(d, id_var==test_market)[,c("date_var", "match_var")]
+create_market_vectors <- function(data, test_market, ref_market, value_variable=NULL){
+  if(value_variable==NULL){
+    value_var = "match_var"
+    d <- subset(data, !is.na(match_var))
+  }else{
+    value_var = value_variable
+    d <- subset(data, !is.na(predict_var))
+  }
+  
+  test <- subset(d, id_var==test_market)[,c("date_var", value_var)]
   names(test)[2] <- "y"
   if (length(ref_market)==1){
-    ref <- subset(d, id_var == ref_market[1])[,c("date_var", "match_var")]
+    ref <- subset(d, id_var == ref_market[1])[,c("date_var", value_var)]
     names(ref)[2] <- "x1"
     f <- dplyr::inner_join(test, ref, by="date_var")
     f <- na.omit(f)
     return(list(as.numeric(f$y), as.numeric(f$x1), as.Date(f$date_var)))
   } else if (length(ref_market)>1){
-    ref <- reshape2::dcast(subset(d, id_var %in% ref_market), date_var ~ id_var, value.var="match_var")
+    ref <- reshape2::dcast(subset(d, id_var %in% ref_market), date_var ~ id_var, value.var=value_var)
     names(ref) <- c("date_var", paste0("x", seq(1:length(ref_market))))
     f <- data.frame(dplyr::inner_join(test, ref, by="date_var"))
     f <- na.omit(f)
@@ -195,7 +202,8 @@ dw <- function(y, yhat){
 #' \item{\code{DateVariable}}{The name of the date variable}
 
 
-best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matching_variable=NULL, test_market=NULL, warping_limit=1, parallel=TRUE, start_match_period=NULL, end_match_period=NULL, matches=5, dtw_emphasis=1){
+best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matching_variable=NULL, prediction_variable=NULL, 
+                         test_market=NULL, warping_limit=1, parallel=TRUE, start_match_period=NULL, end_match_period=NULL, matches=5, dtw_emphasis=1){
 
   ## Check the start date and end dates
   stopif(is.null(start_match_period), TRUE, "No start date provided")
@@ -215,8 +223,9 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
   data$date_var <- data[[date_variable]]
   data$id_var <- data[[id_variable]]
   data$match_var <- data[[matching_variable]]
+  data$predict_var <- data[[prediction_variable]]
 
-  data <- dplyr::arrange(data, id_var, date_var) %>% ungroup() %>% select(id_var, date_var, match_var)
+  data <- dplyr::arrange(data, id_var, date_var) %>% ungroup() %>% select(id_var, date_var, match_var, predict_var)
   ## save a reduced version of the data
   saved_data <- data
 
@@ -258,7 +267,8 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
   }
 
   ### Return the results
-  object <- list(BestMatches=shortest_distances, Data=as.data.frame(saved_data), MarketID=id_variable, MatchingMetric=matching_variable, DateVariable=date_variable)
+  object <- list(BestMatches=shortest_distances, Data=as.data.frame(saved_data), MarketID=id_variable, 
+                 MatchingMetric=matching_variable, DateVariable=date_variable, PredictionVariable=prediction_variable)
   class(object) <- "matched_market"
   return (object)
 }
@@ -348,7 +358,7 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
 #' \item{\code{Coefficients}}{The average posterior coefficients}
 
 inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NULL, alpha=0.05, 
-                      prior_level_sd=0.01, n_seasons=1, control_matches=5, analyze_betas=TRUE){
+                      prior_level_sd=0.01, n_seasons=1, control_matches=5, analyze_betas=TRUE, value_variable=NULL){
 
   ## copy the distances
   mm <- dplyr::filter(matched_markets$BestMatches, rank<=control_matches)
@@ -374,7 +384,7 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
   control_market <- subset(mm, id_var==test_market)$BestControl
 
   ## get the test and ref markets
-  mkts <- create_market_vectors(data, test_market, control_market)
+  mkts <- create_market_vectors(data, test_market, control_market, value_variable="predict_var")
   y <- mkts[[1]]
   ref <- mkts[[2]]
   date <- mkts[[3]]
@@ -487,7 +497,7 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
 
   ## create plots of the actual data
   plotdf <- data[data$id_var %in% c(test_market, control_market),]
-  results[[12]] <- ggplot(data=plotdf, aes(x=date_var, y=match_var, colour=id_var)) +
+  results[[12]] <- ggplot(data=plotdf, aes(x=date_var, y=predict_var, colour=id_var)) +
     geom_line() +
     theme_bw() + theme(legend.title = element_blank(), axis.title.x = element_blank()) + ylab("") + xlab("Date") +
     geom_vline(xintercept=as.numeric(MatchingEndDate), linetype=2) +

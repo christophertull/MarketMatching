@@ -92,7 +92,7 @@ check_inputs <- function(data=NULL, id=NULL, matching_variable=NULL, date_variab
 
 #' @importFrom reshape2 melt dcast
 create_market_vectors <- function(data, test_market, ref_market, value_variable=NULL){
-  if(value_variable==NULL){
+  if(is.null(value_variable)){
     value_var = "match_var"
     d <- subset(data, !is.na(match_var))
   }else{

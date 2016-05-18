@@ -9,7 +9,7 @@ CMean <- function(b) {
   return(0)
 }
 
-calculate_distances <- function(all_markets, data, id, i, warping_limit, matches, dtw_emphasis){
+calculate_distances <- function(all_markets, data, id, i, warping_limit, matches, dtw_emphasis, value_variable){
   row <- 1
   ThisMarket <- all_markets[i]
   distances <- data.frame(matrix(nrow=length(all_markets), ncol=5))
@@ -21,7 +21,7 @@ calculate_distances <- function(all_markets, data, id, i, warping_limit, matches
     ThatMarket <- all_markets[j]
     distances[row, id] <- ThisMarket
     distances[row, "BestControl"] <- ThatMarket
-    mkts <- create_market_vectors(data, ThisMarket, ThatMarket)
+    mkts <- create_market_vectors(data, ThisMarket, ThatMarket, value_variable)
     test <- mkts[[1]]
     ref <- mkts[[2]]
     dates <- mkts[[3]]
@@ -246,20 +246,20 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
     stopif(test_market %in% unique(all_markets), FALSE, paste0("test market ", test_market, " does not exist"))
     
     i <- which(all_markets == test_market)
-    all_distances[[1]] <- calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis)
+    all_distances[[1]] <- calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis, prediction_variable)
     shortest_distances <- data.frame(rbindlist(all_distances))
   }else{
     ## loop through markets and compute distances
     if (parallel==FALSE){
       for (i in 1:length(all_markets)){
-        all_distances[[i]] <- calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis)
+        all_distances[[i]] <- calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis, prediction_variable)
       }
       shortest_distances <- data.frame(rbindlist(all_distances))
     } else{
       ncore <- detectCores()-1
       registerDoParallel(ncore)
       loop_result <- foreach(i=1:length(all_markets)) %dopar% {
-        calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis)
+        calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis, prediction_variable)
       }
       shortest_distances <- data.frame(rbindlist(loop_result))
       stopImplicitCluster()

@@ -21,7 +21,7 @@ calculate_distances <- function(all_markets, data, id, i, warping_limit, matches
     ThatMarket <- all_markets[j]
     distances[row, id] <- ThisMarket
     distances[row, "BestControl"] <- ThatMarket
-    mkts <- create_market_vectors(data, ThisMarket, ThatMarket, value_variable)
+    mkts <- create_market_vectors(data, ThisMarket, ThatMarket)
     test <- mkts[[1]]
     ref <- mkts[[2]]
     dates <- mkts[[3]]

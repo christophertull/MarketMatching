@@ -4,7 +4,7 @@ lagp <- function(x, p){
 
 CMean <- function(b) {
   b <- b[b != 0]
-  if (length(b) > 0) 
+  if (length(b) > 0)
     return(mean(b))
   return(0)
 }
@@ -50,11 +50,11 @@ calculate_distances <- function(all_markets, data, id, i, warping_limit, matches
     }
     row <- row + 1
   }
-  
+
   if(messages > 0){
     cat(paste0(messages, " markets were not matched with ", ThisMarket, " due to insufficient data or no variance."))
   }
-  
+
   distances$matches <- matches
   distances$w <- dtw_emphasis
   distances$MatchingStartDate <- min(data$date_var)
@@ -128,8 +128,8 @@ dw <- function(y, yhat){
 #'
 #' \code{best_matches} finds the best matching control markets for each market in the dataset
 #' using dynamic time warping (\code{dtw} package). If test_market is specified then only the distance from the
-#' test market to every other market is calculated, thereby decreasing runtime from O(n^2) to O(n). Otherwise 
-#' the algorithm simply loops through all viable candidates for each market in a parallel fashion, 
+#' test market to every other market is calculated, thereby decreasing runtime from O(n^2) to O(n). Otherwise
+#' the algorithm simply loops through all viable candidates for each market in a parallel fashion,
 #' and then ranks by distance and/or correlation.
 #'
 #' @param data input data.frame for analysis. The dataset should be structured as "stacked" time series (i.e., a panel dataset).
@@ -137,9 +137,9 @@ dw <- function(y, yhat){
 #' @param id_variable the name of the variable that identifies the markets
 #' @param date_variable the time stamp variable
 #' @param matching_variable the variable (metric) used to match the markets. For example, this could be sales or new customers
-#' @param test_market The id of the test market to find the best matches for. If NULL then distances are calculated for every pair of markets. 
+#' @param test_market The id of the test market to find the best matches for. If NULL then distances are calculated for every pair of markets.
 #' @param parallel set to TRUE for parallel processing. Default is TRUE
-#' @param warping_limit the warping limit used for matching. Default is 1, 
+#' @param warping_limit the warping limit used for matching. Default is 1,
 #' which means that a single query value can be mapped to at most 2 reference values.
 #' @param start_match_period the start date of the matching period (pre period).
 #' Must be a character of format "YYYY-MM-DD" -- e.g., "2015-01-01"
@@ -235,7 +235,7 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
   ## If treatment_id is known a priori, no need to match all markets with all others
   if(!is.null(test_market)){
     stopif(test_market %in% unique(all_markets), FALSE, paste0("test market ", test_market, " does not exist"))
-    
+
     i <- which(all_markets == test_market)
     all_distances[[1]] <- calculate_distances(all_markets, data, id_variable, i, warping_limit, matches, dtw_emphasis)
     shortest_distances <- data.frame(rbindlist(all_distances))
@@ -290,7 +290,7 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
 #' library(MarketMatching)
 #' ##-----------------------------------------------------------------------
 #' ## Analyze causal impact of a made-up weather intervention in Copenhagen
-#' ## Since this is weather data it is a not a very meaningful example. 
+#' ## Since this is weather data it is a not a very meaningful example.
 #' ## This is merely to demonstrate the function.
 #' ##-----------------------------------------------------------------------
 #' data(weather, package="MarketMatching")
@@ -347,7 +347,7 @@ best_matches <- function(data=NULL, id_variable=NULL, date_variable=NULL, matchi
 #' \item{\code{CausalImpactObject}}{The CausalImpact object created}
 #' \item{\code{Coefficients}}{The average posterior coefficients}
 
-inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NULL, alpha=0.05, 
+inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NULL, alpha=0.05,
                       prior_level_sd=0.01, n_seasons=1, control_matches=5, analyze_betas=TRUE){
 
   ## copy the distances
@@ -407,7 +407,7 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
   pre.period <- c(as.Date(MatchingStartDate), as.Date(MatchingEndDate))
   post.period <- c(as.Date(post_period_start_date), as.Date(post_period_end_date))
   set.seed(2015)
-  impact <- CausalImpact(ts, pre.period, post.period, alpha=alpha, 
+  impact <- CausalImpact::CausalImpact(ts, pre.period, post.period, alpha=alpha,
                          model.args=list(prior.level.sd=prior_level_sd, nseasons=n_seasons))
 
   if(analyze_betas==TRUE){
@@ -417,7 +417,7 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
     for (i in 0:20){
       step <- (max(0.1, prior_level_sd) - min(0.001, prior_level_sd))/20
       sd <- min(0.001, prior_level_sd) + step*i
-      m <- CausalImpact(ts, pre.period, post.period, alpha=alpha, 
+      m <- CausalImpact::CausalImpact(ts, pre.period, post.period, alpha=alpha,
                         model.args=list(prior.level.sd=sd, nseasons=n_seasons))
       burn <- SuggestBurn(0.1, m$model$bsts.model)
       b <- sum(apply(m$model$bsts.model$coefficients[-(1:burn),], 2, CMean))
@@ -428,7 +428,7 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
       betas[i+1, "MAPE"] <- mape_no_zeros(preperiod$response, preperiod$point.pred)
     }
   }
-  
+
   burn <- SuggestBurn(0.1, impact$model$bsts.model)
 
   ## create statistics
@@ -500,7 +500,7 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
       geom_line() +
       theme_bw() + theme(legend.title = element_blank()) +
       geom_vline(xintercept=as.numeric(prior_level_sd), linetype=2) + xlab("Local Level Prior SD")
-    
+
     ## plot DWs and MAPEs at different SDs
     plotdf <- melt(data=betas, id="SD")
     results[[14]] <- ggplot(data=plotdf, aes(x=SD, y=value, colour=variable)) + geom_line() +
@@ -532,7 +532,7 @@ inference <- function(matched_markets=NULL, test_market=NULL, end_post_period=NU
     scale_y_continuous(labels = scales::comma) + ylab("Point Effect") + xlab("") +
     geom_vline(xintercept=as.numeric(MatchingEndDate), linetype=2) +
     geom_ribbon(aes(ymin=lower_bound, ymax=upper_bound), fill="grey", alpha=0.3)
-  
+
   ### print results
   cat("\t------------- Effect Analysis -------------\n")
   cat(paste0("\tAbsolute Effect: ", round(results[[1]],2), " [", round(results[[2]],2), ", ", round(results[[3]],2), "]\n"))
